@@ -19,7 +19,7 @@ router = APIRouter(prefix="/projects/{project_id}", tags=["project_user"])
 
 
 @router.post("/users/{user_id}", response_model=ProjectUserResponse)
-def add_user_to_project_endpoint(
+def add_user_to_project(
     project_id: int,
     user_id: UUID,
     admin: bool = False,  # Allow specifying admin role
@@ -72,7 +72,7 @@ def list_users_in_project(
     return get_users_by_project(db, project_id)
 
 @router.delete("/users/{user_id}", response_model=ProjectUserResponse)
-def remove_user_from_project_endpoint(
+def remove_user_from_project(
     project_id: int,
     user_id: UUID,
     db: Session = Depends(get_db),
