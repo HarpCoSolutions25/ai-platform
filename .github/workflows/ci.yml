@@ -42,6 +42,7 @@ jobs:
           aws ecs update-service \
             --cluster ${{ github.event.repository.name }}-cluster \
             --service ${{ github.event.repository.name }}-service \
+            --enable-execute-command \
             --force-new-deployment \
             --region ap-south-1
 
