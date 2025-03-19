@@ -6,7 +6,7 @@ on:
       - testing
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     permissions:
@@ -16,10 +16,10 @@ jobs:
       id-token: write
 
     steps:
-      - name: Checkout the repo
+      - name: Checkout the Repo
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::024209611402:role/github-action-role
@@ -34,7 +34,7 @@ jobs:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: ${{ github.event.repository.name }}-repo
         run: |
-          docker build -t $REGISTRY/$REPOSITORY:latest .
+          docker build -t $REGISTRY/$REPOSITORY:latest ./backend
           docker push $REGISTRY/$REPOSITORY:latest
 
       - name: Deploy to ECS
@@ -46,7 +46,7 @@ jobs:
 
   wait-for-ecs:
     runs-on: ubuntu-latest
-    needs: deploy
+    needs: build-and-deploy
     steps:
       - name: Wait for ECS Service to Stabilize
         run: |
