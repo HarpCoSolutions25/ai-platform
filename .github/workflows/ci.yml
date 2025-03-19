@@ -53,7 +53,8 @@ jobs:
           echo "Waiting for ECS service to stabilize..."
           aws ecs wait services-stable \
             --cluster ${{ github.event.repository.name }}-cluster \
-            --services ${{ github.event.repository.name }}-service
+            --services ${{ github.event.repository.name }}-service \
+            --region ap-south-1
 
   run-migrations:
     runs-on: ubuntu-latest
