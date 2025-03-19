@@ -86,7 +86,7 @@ jobs:
           aws ecs execute-command \
             --cluster ${{ github.event.repository.name }}-cluster \
             --task "$TASK_ARN" \
-            --container ${{ github.event.repository.name }}-container \
+            --container ${{ github.event.repository.name }} \
             --command "uv run alembic upgrade head" \
             --interactive \
             --region ap-south-1
