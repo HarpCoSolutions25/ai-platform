@@ -3,10 +3,10 @@ name: Deploy AI Platform to ECS
 on:
   push:
     branches:
-      - test/ci
+      - testing
 
 jobs:
-  build:
+  deploy-and-migrate:
     runs-on: ubuntu-latest
 
     permissions:
@@ -15,13 +15,12 @@ jobs:
       attestations: write
       id-token: write
 
-
     steps:
-      - name: checkout the repo
+      - name: Checkout the Repo
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4 # More information on this action can be found below in the 'AWS Credentials' section
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::024209611402:role/github-action-role
           aws-region: ap-south-1
@@ -29,7 +28,6 @@ jobs:
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-
 
       - name: Build and Push Docker Image
         env:
@@ -41,4 +39,54 @@ jobs:
 
       - name: Deploy to ECS
         run: |
-          aws ecs update-service --cluster ${{ github.event.repository.name }}-cluster --service ${{ github.event.repository.name }}-service --force-new-deployment
+          aws ecs update-service \
+            --cluster ${{ github.event.repository.name }}-cluster \
+            --service ${{ github.event.repository.name }}-service \
+            --force-new-deployment \
+            --region ap-south-1
+
+      - name: Wait for ECS Service to Stabilize
+        run: |
+          echo "Waiting for ECS service to stabilize..."
+          TIMEOUT=1200  # 20 minutes timeout
+          INTERVAL=60   # Check every 30 seconds
+          ELAPSED=0
+
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            STATUS=$(aws ecs describe-services \
+              --cluster ${{ github.event.repository.name }}-cluster \
+              --services ${{ github.event.repository.name }}-service \
+              --region ap-south-1 \
+              --query "services[0].status" --output text)
+
+            if [[ "$STATUS" == "ACTIVE" ]]; then
+              echo "ECS Service is now stable."
+              exit 0
+            fi
+
+            echo "Waiting for ECS service... (Elapsed: $ELAPSED sec, Status: $STATUS)"
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+
+          echo "ERROR: ECS service did not stabilize within $TIMEOUT seconds!"
+          exit 1
+
+      - name: Run Database Migration
+        run: |
+          echo "Fetching running ECS task ARN..."
+          TASK_ARN=$(aws ecs list-tasks \
+            --cluster ${{ github.event.repository.name }}-cluster \
+            --service-name ${{ github.event.repository.name }}-service \
+            --desired-status RUNNING \
+            --query "taskArns[0]" --output text \
+            --region ap-south-1)
+
+          echo "Executing database migration inside ECS container..."
+          aws ecs execute-command \
+            --cluster ${{ github.event.repository.name }}-cluster \
+            --task "$TASK_ARN" \
+            --container ${{ github.event.repository.name }}-container \
+            --command "uv run alembic upgrade head" \
+            --interactive \
+            --region ap-south-1

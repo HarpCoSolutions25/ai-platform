@@ -40,4 +40,4 @@ EXPOSE 80
 
 # Command to run the application using uv
 ENV WORKERS=$(nproc)
-CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "80", "--workers", "$WORKERS"]
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "80", "--workers", "4"]
