@@ -1,4 +1,4 @@
-name: Deploy AI Platform to ECS
+name: Deploy AI Platform to ECS Staging
 
 on:
   push:
@@ -38,6 +38,30 @@ jobs:
         run: |
           docker build -t $REGISTRY/$REPOSITORY:latest ./backend
           docker push $REGISTRY/$REPOSITORY:latest
+
+      - name: Run Database Migration
+        run: |
+          run_result=$(aws ecs run-task \
+            --cluster ${{ github.event.repository.name }}-staging-cluster \
+            --task-definition ${{ github.event.repository.name }}-db-migrate:1 \
+            --count 1 \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[subnet-00dc34d75aaaee54a],securityGroups=[sg-087f3c6fb29311455],assignPublicIp=ENABLED}")
+          echo ${run_result}
+          container_arn=$(echo $run_result | jq '.tasks[0].taskArn' | sed -e 's/^"//' -e 's/"$//')
+          aws ecs wait tasks-running --cluster ${{ github.event.repository.name }}-staging-cluster --tasks "${container_arn}"
+          aws ecs wait tasks-stopped --cluster ${{ github.event.repository.name }}-staging-cluster --tasks "${container_arn}"
+          
+          # Check if migration was successful by examining task exit code
+          task_status=$(aws ecs describe-tasks --cluster ${{ github.event.repository.name }}-staging-cluster --tasks "${container_arn}")
+          exit_code=$(echo $task_status | jq '.tasks[0].containers[0].exitCode')
+          
+          if [ "$exit_code" != "0" ]; then
+            echo "Database migration failed with exit code $exit_code"
+            exit 1
+          fi
+          
+          echo "Database migration completed successfully"
 
       - name: Deploy to ECS
         run: |
